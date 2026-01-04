@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Android (Buildozer)
 
 on:
   push:
@@ -7,27 +7,73 @@ on:
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      - name: Show repo root (debug)
+        run: |
+          echo "PWD: $(pwd)"
+          echo "Listing root:"
+          ls -la
+          if [ -f buildozer.spec ]; then
+            echo "buildozer.spec found in repo root"
+            sed -n '1,200p' buildozer.spec || true
+          else
+            echo "::warning::buildozer.spec not found in repo root"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install dependencies & build
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip build-essential
+          sudo apt-get install -y --no-install-recommends \
+            git zip unzip openjdk-17-jdk python3-pip build-essential \
+            autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
+            libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
+            liblzma-dev libbz2-dev libreadline-dev libsqlite3-dev \
+            libxcb1-dev libx11-dev libxt-dev x11-utils
           python3 -m pip install --upgrade pip
-          pip3 install --user buildozer
-          export PATH=$PATH:~/.local/bin
-          buildozer -v android debug
+
+      - name: Install Buildozer + tooling (user)
+        run: |
+          pip3 install --user buildozer cython virtualenv
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "PATH=$PATH"
+
+      - name: Ensure buildozer.spec exists (fail-fast)
+        run: |
+          if [ ! -f buildozer.spec ]; then
+            echo "ERROR: buildozer.spec not found in repo root. Check working-directory or add the file." >&2
+            exit 1
+          fi
+          # quick sanity check for source.dir
+          if ! grep -q "^source.dir" buildozer.spec; then
+            echo "WARNING: 'source.dir' not found in buildozer.spec; setting default to '.'" 
+            sed -i "1i source.dir = ." buildozer.spec || true
+            echo "Inserted 'source.dir = .' at top of buildozer.spec"
+            sed -n '1,40p' buildozer.spec
+          fi
+
+      - name: Build APK (try normal, fallback to yes pipe)
+        env:
+          PATH: ${{ runner.temp }}:$HOME/.local/bin:$PATH
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "Running buildozer -v android debug (may download SDK/NDK, this can take long)"
+          # Try once normally (useful if everything non-interactive)
+          set -o pipefail
+          buildozer -v android debug || (echo "First build attempt failed; retrying with 'yes' to auto-accept prompts" && yes | buildozer -v android debug)
 
       - name: Upload artifact (APK)
+        if: success() && steps.build.outputs
         uses: actions/upload-artifact@v4
         with:
-          name: apk-artifact
+          name: apk
           path: bin/*.apk
