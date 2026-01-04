@@ -7,7 +7,8 @@ on:
 
 jobs:
   build-android:
-    runs-on: ubuntu-24.04
+    # CHANGED: Switched to 22.04 to support libtinfo5/ncurses5
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repo
@@ -33,6 +34,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
+          # libtinfo5 and libncurses5 are available and safe to install on ubuntu-22.04
           sudo apt-get install -y --no-install-recommends \
             git zip unzip openjdk-17-jdk python3-pip build-essential \
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
@@ -44,36 +46,31 @@ jobs:
       - name: Install Buildozer + tooling (user)
         run: |
           pip3 install --user buildozer cython virtualenv
-          export PATH="$HOME/.local/bin:$PATH"
-          echo "PATH=$PATH"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Ensure buildozer.spec exists (fail-fast)
         run: |
           if [ ! -f buildozer.spec ]; then
-            echo "ERROR: buildozer.spec not found in repo root. Check working-directory or add the file." >&2
+            echo "ERROR: buildozer.spec not found in repo root." >&2
             exit 1
           fi
           # quick sanity check for source.dir
           if ! grep -q "^source.dir" buildozer.spec; then
             echo "WARNING: 'source.dir' not found in buildozer.spec; setting default to '.'" 
             sed -i "1i source.dir = ." buildozer.spec || true
-            echo "Inserted 'source.dir = .' at top of buildozer.spec"
-            sed -n '1,40p' buildozer.spec
           fi
 
-      - name: Build APK (try normal, fallback to yes pipe)
-        env:
-          PATH: ${{ runner.temp }}:$HOME/.local/bin:$PATH
+      - name: Build APK
+        id: build_apk
         run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          echo "Running buildozer -v android debug (may download SDK/NDK, this can take long)"
-          # Try once normally (useful if everything non-interactive)
-          set -o pipefail
-          buildozer -v android debug || (echo "First build attempt failed; retrying with 'yes' to auto-accept prompts" && yes | buildozer -v android debug)
+          echo "Running buildozer -v android debug"
+          # Try once normally, fallback to yes pipe if it asks for license agreements
+          buildozer -v android debug || (yes | buildozer -v android debug)
 
       - name: Upload artifact (APK)
-        if: success() && steps.build.outputs
+        # CHANGED: Removed '&& steps.build.outputs' which was invalid
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: apk
+          name: lan-voice-app-apk
           path: bin/*.apk
