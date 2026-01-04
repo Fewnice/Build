@@ -1,16 +1,24 @@
 [app]
+# معلومات أساسية
 title = LANVoiceApp
 package.name = lanvoiceapp
 package.domain = org.local
-source.include_exts = py,json
 version = 0.1
 orientation = portrait
 
-# ضع هنا المتطلبات التي استخدمناها
-requirements = python3,kivy,fastapi,uvicorn,sounddevice,numpy,websockets
+# مكان مصدر الكود (مهم)
+source.dir = .
 
-# أيقونة (اختياري)
-# icon.filename = %(source.dir)s/data/icon.png
+# امتدادات الملفات المسموح تضمينها
+source.include_exts = py,kv,json
 
-# Android permissions
+# المتطلبات الأساسية (مبسطة لمرحلة البناء الأولى)
+requirements = python3,kivy,websockets,numpy
+
+# صلاحيات أندرويد المطلوبة
 android.permissions = RECORD_AUDIO,INTERNET
+
+# إعدادات أندرويد مبسطة
+android.api = 33
+android.minapi = 21
+android.arch = armeabi-v7a,arm64-v8a
