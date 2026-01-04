@@ -7,68 +7,65 @@ on:
 
 jobs:
   build-android:
-    # CHANGED: Switched to 22.04 to support libtinfo5/ncurses5
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Show repo root (debug)
-        run: |
-          echo "PWD: $(pwd)"
-          echo "Listing root:"
-          ls -la
-          if [ -f buildozer.spec ]; then
-            echo "buildozer.spec found in repo root"
-            sed -n '1,200p' buildozer.spec || true
-          else
-            echo "::warning::buildozer.spec not found in repo root"
-          fi
+      # 1. Setup Java 17 explicitly (Required for Android SDK 33+)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
+      # 2. Install System Dependencies (Added libffi-dev specifically)
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          # libtinfo5 and libncurses5 are available and safe to install on ubuntu-22.04
           sudo apt-get install -y --no-install-recommends \
-            git zip unzip openjdk-17-jdk python3-pip build-essential \
+            git zip unzip python3-pip build-essential \
             autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
             libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
             liblzma-dev libbz2-dev libreadline-dev libsqlite3-dev \
             libxcb1-dev libx11-dev libxt-dev x11-utils
           python3 -m pip install --upgrade pip
 
-      - name: Install Buildozer + tooling (user)
+      - name: Install Buildozer + tooling
         run: |
           pip3 install --user buildozer cython virtualenv
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Ensure buildozer.spec exists (fail-fast)
+      - name: Fix permissions and spec
         run: |
+          # Ensure current user owns the directory
+          sudo chown -R $USER:$USER .
+          
           if [ ! -f buildozer.spec ]; then
-            echo "ERROR: buildozer.spec not found in repo root." >&2
+            echo "ERROR: buildozer.spec not found." >&2
             exit 1
           fi
-          # quick sanity check for source.dir
+          
+          # Inject source.dir if missing
           if ! grep -q "^source.dir" buildozer.spec; then
-            echo "WARNING: 'source.dir' not found in buildozer.spec; setting default to '.'" 
-            sed -i "1i source.dir = ." buildozer.spec || true
+            sed -i "1i source.dir = ." buildozer.spec
           fi
 
+      # 3. Clean Build Command
+      # We pipe 'yes' to accept SDK licenses automatically.
+      # We removed the '||' retry logic so we can see the actual error log.
       - name: Build APK
         id: build_apk
         run: |
-          echo "Running buildozer -v android debug"
-          # Try once normally, fallback to yes pipe if it asks for license agreements
-          buildozer -v android debug || (yes | buildozer -v android debug)
+          yes | buildozer -v android debug
 
       - name: Upload artifact (APK)
-        # CHANGED: Removed '&& steps.build.outputs' which was invalid
         if: success()
         uses: actions/upload-artifact@v4
         with:
