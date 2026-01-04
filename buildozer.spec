@@ -1,24 +1,19 @@
 [app]
-# معلومات أساسية
 title = LANVoiceApp
 package.name = lanvoiceapp
 package.domain = org.local
 version = 0.1
-orientation = portrait
 
-# مكان مصدر الكود (مهم)
+# IMPORTANT (سبب الخطأ)
 source.dir = .
 
-# امتدادات الملفات المسموح تضمينها
 source.include_exts = py,kv,json
 
-# المتطلبات الأساسية (مبسطة لمرحلة البناء الأولى)
 requirements = python3,kivy,websockets,numpy
 
-# صلاحيات أندرويد المطلوبة
-android.permissions = RECORD_AUDIO,INTERNET
+orientation = portrait
 
-# إعدادات أندرويد مبسطة
+android.permissions = RECORD_AUDIO,INTERNET
 android.api = 33
 android.minapi = 21
-android.arch = armeabi-v7a,arm64-v8a
+android.arch = arm64-v8a,armeabi-v7a
